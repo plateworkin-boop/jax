@@ -23,10 +23,12 @@ from jax._src.profiler import (
     TraceAnnotation as TraceAnnotation,
     annotate_function as annotate_function,
     device_memory_profile as device_memory_profile,
+    register_subprocess as register_subprocess,
     save_device_memory_profile as save_device_memory_profile,
     start_server as start_server,
     start_trace as start_trace,
     stop_server as stop_server,
     stop_trace as stop_trace,
     trace as trace,
+    unregister_subprocess as unregister_subprocess,
 )
