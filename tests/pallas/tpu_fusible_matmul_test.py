@@ -1236,6 +1236,52 @@ class ExcessPrecisionTest(jtu.JaxTestCase):
     out = jax.jit(impl)(x, y)
     self.assertArraysEqual(out, out_ref)
 
+  def test_fusible_outside_fuse(self):
+    # Reproduces the gemax failure pattern:
+    # jit → shard_map → custom_vjp → fusible
+    #
+    # The bug: DynamicJaxprTrace.process_custom_vjp_call traces the primal
+    # via trace_to_jaxpr_dynamic(fun, in_avals) without lower=True, creating
+    # a fun_jaxpr that contains call_hi_primitive. But process_custom_vjp_call
+    # doesn't propagate fun_jaxpr.is_high to the current frame. So shard_map's
+    # body jaxpr.is_high remains False, the outer jit frame.is_high remains
+    # False, lower_jaxpr2 is never called, and call_hi_primitive reaches MLIR
+    # lowering where it has no translation rule.
+
+    @fuser.fusible
+    def f(x_fn, out_fn):
+      if out_fn is None:
+        out_fn = lambda x: x
+      return out_fn(x_fn() + 1.0)
+
+    mesh = jax.sharding.Mesh(jax.devices()[:1], ('x',))
+    P = jax.sharding.PartitionSpec
+
+    @jax.custom_vjp
+    def g(x):
+      return f(x)
+
+    def g_fwd(x):
+      y = f(x)
+      return y, x
+
+    def g_bwd(res, grad):
+      return (grad,)
+
+    g.defvjp(g_fwd, g_bwd)
+
+    def body(x):
+      return g(x)
+
+    @jax.jit
+    def run(x):
+      return jax.shard_map(body, mesh=mesh, in_specs=P(), out_specs=P())(x)
+
+    x = jnp.ones((128, 128))
+    y = run(x)
+    np.testing.assert_allclose(y, jnp.full((128, 128), 2.0))
+
+
 
 if __name__ == '__main__':
   absltest.main(testLoader=jtu.JaxTestLoader())
