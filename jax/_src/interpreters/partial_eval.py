@@ -133,6 +133,9 @@ class JaxprTrace(Trace):
     else:
       return self.new_const(x)
 
+  def stage_value(self, val):
+    return self.to_jaxpr_tracer(val)
+
   def new_const(self, val) -> JaxprTracer:
     return JaxprTracer(self, PartialVal.known(val), None)
 
@@ -1941,6 +1944,10 @@ class DynamicJaxprTrace(core.Trace):
   def cur_qdd(self, x):
     source_info = source_info_util.current()
     return self.to_jaxpr_tracer(x, source_info=source_info).mutable_qdd.cur_val
+
+  def stage_value(self, val):
+    source_info = source_info_util.current()
+    return self.to_jaxpr_tracer(val, source_info=source_info)
 
   def process_primitive(self, primitive, tracers, params, /):
     self.frame.is_high |= primitive.is_high(*map(typeof, tracers), **params)
