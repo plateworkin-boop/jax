@@ -248,6 +248,7 @@ class MemorySpace(enum.Enum):
   type during lowering.
   """
   ANY = "any"  # Unrestricted memory space (usually HBM)
+  DEFAULT = "default"  # Default memory space (VMEM for TPU, HBM for GPU)
   ERROR = "error"  # Memory space for checkify errors.
   INDEX = "index"  # Memory space for scalar prefetch arguments.
   KEY = "key"  # Memory space for PRNG keys.
@@ -1562,6 +1563,7 @@ mlir.register_lowering(core_map_p, core_map_lowering_rule)
 CoreType = Any  # TODO(rdyro): Unify this among backends.
 
 
+@runtime_checkable
 class Mesh(Protocol):
 
   @property
@@ -1588,6 +1590,11 @@ class Mesh(Protocol):
     compatible with itself.
     """
     raise ValueError(f"Mesh {self=} is not compatible with {other_mesh=}.")
+
+  @property
+  def supported_memory_spaces(self) -> Sequence[Any]:
+    """Return the memory spaces supported by the mesh."""
+    ...
 
 _core_map_mesh_rules: dict[type[Any], Callable[..., Any]] = {}
 

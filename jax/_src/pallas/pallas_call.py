@@ -1509,7 +1509,7 @@ def _pallas_call(
         pallas_core._convert_out_shape_to_aval(v) for v in flat_out_shapes
     )
 
-    default_memory_space = None
+    default_memory_space = pallas_core.MemorySpace.DEFAULT
     if isinstance(interpret, InterpretParams):
       # TODO(jburnim): Can we always set the default memory space for
       # TPU kernels -- not just under TPU Interpret Mode?

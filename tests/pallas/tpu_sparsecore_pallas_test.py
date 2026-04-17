@@ -1363,7 +1363,7 @@ class VectorSubcoreTest(PallasSCTest):
 
     @self.vector_subcore_kernel(
         out_shape=x,
-        scratch_shapes=(pltpu.VMEM([self.num_lanes], jnp.float32) @ pltpu.CoreType.SC_VECTOR_SUBCORE,),
+        scratch_shapes=(pltpu.VMEM([self.num_lanes], jnp.float32),),
     )
     def kernel(x_ref, o_ref, scratch_ref):
       scratch_ref[...] = x_ref[...].astype(jnp.float32)
@@ -1667,7 +1667,7 @@ class VectorSubcoreTest(PallasSCTest):
     np.testing.assert_array_equal(output, expected.reshape(-1))
 
   @parameterized.parameters(
-      (lambda x_ref: x_ref, r"may not be.*Ref\{"),
+      (lambda x_ref: x_ref, r"may not be.*Ref<default>\{"),
       (lambda x_ref: x_ref.at[pl.ds(0, 8)], r"TransformedRefs are not allowed"),
   )
   def test_parallel_loop_disallows_ref_carries(self, carry_fn, expected_regex):
@@ -2152,6 +2152,7 @@ class ScalarSubcoreTest(PallasSCTest):
             kernel_type=pltpu.CoreType.SC_SCALAR_SUBCORE,
             use_tc_tiling_on_sc=self.USE_TC_TILING,
         ),
+        debug=True,
     )
     def kernel(x, out):
       @pl.loop(0, x.size)
@@ -2448,9 +2449,9 @@ class MpmdMapTest(PallasSCTest):
           ),
           scratch_shapes=[
             # SCS -> TEC
-            pltpu.SemaphoreType.REGULAR(()) @ pltpu.CoreType.SC_VECTOR_SUBCORE,
+            pltpu.SemaphoreType.REGULAR(()) @ v_mesh,
             # TEC -> SCS
-            pltpu.SemaphoreType.REGULAR(()) @ pltpu.CoreType.SC_SCALAR_SUBCORE,
+            pltpu.SemaphoreType.REGULAR(()) @ s_mesh,
           ],
       )()
 
@@ -2489,8 +2490,7 @@ class MpmdMapTest(PallasSCTest):
           [(v_mesh, vector_subcore_fn), (s_mesh, scalar_subcore_fn)],
           out_shapes=jax.ShapeDtypeStruct([8], jnp.int32),
           scratch_shapes=[
-              pltpu.SemaphoreType.REGULAR(())
-              @ pltpu.CoreType.SC_VECTOR_SUBCORE,
+              pltpu.SemaphoreType.REGULAR(()) @ v_mesh
           ],
       )()
 

@@ -297,7 +297,7 @@ def _memory_space_to_mosaic_attribute(
       return ir.Attribute.parse(f"#tpu.memory_space<{ms}>")
     case tpu_core.CoreMemorySpace() as cms:
       return ir.Attribute.parse(
-          f"#tpu.memory_space<{cms.memory_space}, {cms.core_type}>"
+          f"#tpu.memory_space<{cms.memory_space}, {cms.mesh.core_type}>"
       )
     case _:
       raise NotImplementedError(f"Invalid memory space: {tpu_memory_space!r}")
@@ -657,7 +657,12 @@ def _check_block_mappings(
     rank = len(physical_block_shape)
     # TODO(necula): add tests for SMEM blocks with trivial windowing
     # We support scalars too
-    memory_space = tpu_core.memory_space_to_tpu_memory_space(bm.block_aval.memory_space, kernel_type)
+    block_memory_space = bm.block_aval.memory_space
+    if block_memory_space is None:
+      block_memory_space = pallas_core.MemorySpace.DEFAULT
+    memory_space = tpu_core.memory_space_to_tpu_memory_space(
+        block_memory_space, kernel_type
+    )
     if memory_space == tpu_core.MemorySpace.SMEM and bm.has_trivial_window():
       continue
     if memory_space == tpu_core.MemorySpace.SEMAPHORE:
@@ -855,8 +860,11 @@ def lower_jaxpr_into_module(
     for i, bm in enumerate(grid_mapping.block_mappings):
       func_name = f"transform_{i}"
       # ANY and SEMAPHORE operands don't support windowing and require empty window_params.
+      block_memory_space = bm.block_aval.memory_space
+      if block_memory_space is None:
+        block_memory_space = pallas_core.MemorySpace.DEFAULT
       tpu_memory_space = tpu_core.memory_space_to_tpu_memory_space(
-          bm.block_aval.memory_space, kernel_type
+          block_memory_space, kernel_type
       )
       if (
           tpu_memory_space is ANY
@@ -4048,7 +4056,7 @@ def _semaphore_signal_lowering_rule(
   sem, _ = _transform_ref(sem, sem_aval, sem_aval.shape, transforms)
   kernel_type = ctx.lowering_context.kernel_type
   if isinstance(sem_aval.memory_space, tpu_core.CoreMemorySpace):
-    dest_kernel_type = sem_aval.memory_space.core_type
+    dest_kernel_type = sem_aval.memory_space.mesh.core_type
   else:
     dest_kernel_type = kernel_type
   if device_id is not None or dest_kernel_type != kernel_type:
@@ -4123,7 +4131,7 @@ def _dma_start_lowering_rule(
   sem, _ = _transform_ref(sem, sem_aval, sem_aval.shape, sem_transforms)
   kernel_type = ctx.lowering_context.kernel_type
   if isinstance(sem_aval.memory_space, tpu_core.CoreMemorySpace):
-    dest_kernel_type = sem_aval.memory_space.core_type
+    dest_kernel_type = sem_aval.memory_space.mesh.core_type
   else:
     dest_kernel_type = kernel_type
   core_id = None
